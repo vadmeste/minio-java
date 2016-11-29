@@ -671,15 +671,7 @@ public final class MinioClient {
 
         @Override
         public long contentLength() {
-          if (body instanceof InputStream || body instanceof RandomAccessFile || body instanceof byte[]) {
             return length;
-          }
-
-          if (length == 0) {
-            return -1;
-          } else {
-            return length;
-          }
         }
 
         @Override
@@ -918,7 +910,7 @@ public final class MinioClient {
       queryParamMap.put("location", null);
 
       HttpResponse response = execute(Method.GET, US_EAST_1, bucketName, null,
-                                      null, queryParamMap, null, null, 0);
+                                      null, queryParamMap, null, null, -1);
 
       // existing XmlEntity does not work, so fallback to regular parsing.
       XmlPullParser xpp = xmlPullParserFactory.newPullParser();
@@ -982,7 +974,7 @@ public final class MinioClient {
     updateRegionCache(bucketName);
     return execute(Method.GET, BucketRegionCache.INSTANCE.region(bucketName),
                    bucketName, objectName, headerMap, queryParamMap,
-                   null, null, 0);
+                   null, null, -1);
   }
 
 
@@ -999,7 +991,7 @@ public final class MinioClient {
     updateRegionCache(bucketName);
     HttpResponse response = execute(Method.HEAD, BucketRegionCache.INSTANCE.region(bucketName),
                                     bucketName, objectName, null,
-                                    null, null, null, 0);
+                                    null, null, null, -1);
     response.body().close();
     return response;
   }
@@ -1019,7 +1011,7 @@ public final class MinioClient {
     updateRegionCache(bucketName);
     HttpResponse response = execute(Method.DELETE, BucketRegionCache.INSTANCE.region(bucketName),
                                     bucketName, objectName, null,
-                                    queryParamMap, null, null, 0);
+                                    queryParamMap, null, null, -1);
     response.body().close();
     return response;
   }
@@ -1040,9 +1032,16 @@ public final class MinioClient {
            InvalidKeyException, NoResponseException, XmlPullParserException, ErrorResponseException,
            InternalException {
     updateRegionCache(bucketName);
+    int len = -1;
+    if (data instanceof String) {
+      len = ((String) data).length();
+    }
+    if (data instanceof CompleteMultipartUpload) {
+      len = ((CompleteMultipartUpload) data).toString().length();
+    }
     return execute(Method.POST, BucketRegionCache.INSTANCE.region(bucketName),
                    bucketName, objectName, headerMap, queryParamMap,
-                   null, data, 0);
+                   null, data, len);
   }
 
 
@@ -1875,7 +1874,7 @@ public final class MinioClient {
       configString = config.toString();
     }
 
-    executePut(bucketName, null, headerMap, null, US_EAST_1, configString, 0);
+    executePut(bucketName, null, headerMap, null, US_EAST_1, configString, configString.getBytes("UTF-8").length);
   }
 
 
