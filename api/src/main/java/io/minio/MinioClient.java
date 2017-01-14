@@ -671,13 +671,19 @@ public final class MinioClient {
 
         @Override
         public long contentLength() {
+          if (body instanceof InputStream || body instanceof RandomAccessFile || body instanceof byte[]) {
             return length;
+          }
+
+          if (length == 0) {
+            return -1;
+          } else {
+            return length;
+          }
         }
 
         @Override
         public void writeTo(BufferedSink sink) throws IOException {
-          byte[] data = null;
-
           if (body instanceof InputStream) {
             InputStream stream = (InputStream) body;
             sink.write(Okio.source(stream), length);
@@ -685,6 +691,7 @@ public final class MinioClient {
             RandomAccessFile file = (RandomAccessFile) body;
             sink.write(Okio.source(Channels.newInputStream(file.getChannel())), length);
           } else if (body instanceof byte[]) {
+            byte[] data = (byte[]) body;
             sink.write(data, 0, length);
           } else {
             sink.writeUtf8(body.toString());
@@ -777,6 +784,12 @@ public final class MinioClient {
     throws InvalidBucketNameException, NoSuchAlgorithmException, InsufficientDataException, IOException,
            InvalidKeyException, NoResponseException, XmlPullParserException, ErrorResponseException,
            InternalException {
+    if (body != null && !(body instanceof InputStream || body instanceof RandomAccessFile || body instanceof byte[])) {
+      byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+      body = bytes;
+      length = bytes.length;
+    }
+
     Request request = createRequest(method, bucketName, objectName, region,
                                     headerMap, queryParamMap,
                                     contentType, body, length);
@@ -910,7 +923,7 @@ public final class MinioClient {
       queryParamMap.put("location", null);
 
       HttpResponse response = execute(Method.GET, US_EAST_1, bucketName, null,
-                                      null, queryParamMap, null, null, -1);
+                                      null, queryParamMap, null, null, 0);
 
       // existing XmlEntity does not work, so fallback to regular parsing.
       XmlPullParser xpp = xmlPullParserFactory.newPullParser();
@@ -974,7 +987,7 @@ public final class MinioClient {
     updateRegionCache(bucketName);
     return execute(Method.GET, BucketRegionCache.INSTANCE.region(bucketName),
                    bucketName, objectName, headerMap, queryParamMap,
-                   null, null, -1);
+                   null, null, 0);
   }
 
 
@@ -991,7 +1004,7 @@ public final class MinioClient {
     updateRegionCache(bucketName);
     HttpResponse response = execute(Method.HEAD, BucketRegionCache.INSTANCE.region(bucketName),
                                     bucketName, objectName, null,
-                                    null, null, null, -1);
+                                    null, null, null, 0);
     response.body().close();
     return response;
   }
@@ -1011,7 +1024,7 @@ public final class MinioClient {
     updateRegionCache(bucketName);
     HttpResponse response = execute(Method.DELETE, BucketRegionCache.INSTANCE.region(bucketName),
                                     bucketName, objectName, null,
-                                    queryParamMap, null, null, -1);
+                                    queryParamMap, null, null, 0);
     response.body().close();
     return response;
   }
@@ -1032,16 +1045,9 @@ public final class MinioClient {
            InvalidKeyException, NoResponseException, XmlPullParserException, ErrorResponseException,
            InternalException {
     updateRegionCache(bucketName);
-    int len = -1;
-    if (data instanceof String) {
-      len = ((String) data).length();
-    }
-    if (data instanceof CompleteMultipartUpload) {
-      len = ((CompleteMultipartUpload) data).toString().length();
-    }
     return execute(Method.POST, BucketRegionCache.INSTANCE.region(bucketName),
                    bucketName, objectName, headerMap, queryParamMap,
-                   null, data, len);
+                   null, data, 0);
   }
 
 
@@ -1874,7 +1880,7 @@ public final class MinioClient {
       configString = config.toString();
     }
 
-    executePut(bucketName, null, headerMap, null, US_EAST_1, configString, configString.getBytes("UTF-8").length);
+    executePut(bucketName, null, headerMap, null, US_EAST_1, configString, 0);
   }
 
 
@@ -2193,7 +2199,7 @@ public final class MinioClient {
 
     String policyJson = policy.getJson();
 
-    HttpResponse response = executePut(bucketName, "", null, queryParamMap, policyJson, policyJson.length());
+    HttpResponse response = executePut(bucketName, "", null, queryParamMap, policyJson, 0);
     response.body().close();
   }
 
